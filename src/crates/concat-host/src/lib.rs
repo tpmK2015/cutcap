@@ -27,6 +27,8 @@ pub mod cutout;
 pub mod dirs;
 pub mod enhance;
 pub mod export;
+#[cfg(any(target_os = "ios", test))]
+mod ios_paths;
 pub mod jobs;
 pub mod lock;
 pub mod logs;

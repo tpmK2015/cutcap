@@ -659,6 +659,16 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     app.on_start_browse(on_window!(|state| {
         state.handle(Msg::Start(StartMsg::Browse));
     }));
+    app.on_start_edit_video(|| {
+        host::pick_files_then(
+            i18n::t("start.editVideo"),
+            Some((
+                i18n::t("common.media"),
+                &["mp4", "mov", "m4v", "mkv", "webm", "avi"],
+            )),
+            |studio, _, _, paths| studio.handle(Msg::Start(StartMsg::EditMedia(paths))),
+        );
+    });
     app.on_start_create(on_window!(|state| {
         state.handle(Msg::Start(StartMsg::Create));
     }));

@@ -1550,6 +1550,12 @@ export component SettingsDialog inherits Modal {
                         font-size: Theme.fs-lg;
                         font-weight: Theme.weight-title;
                     }
+                    Text {
+                        text: I18n.t("settings.forkNotice");
+                        color: Theme.fg-muted;
+                        font-size: Theme.fs-sm;
+                        wrap: word-wrap;
+                    }
                 }
 
                 // The block an issue report is opened with. Every line in it

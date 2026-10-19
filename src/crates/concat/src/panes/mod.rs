@@ -128,6 +128,18 @@ pub fn activity(msg: &Msg) -> Option<Activity> {
                 },
             ));
         }
+        Msg::Start(start::StartMsg::EditMedia(paths)) => {
+            return Some(Activity::once(
+                Info,
+                format!("quick edit: {} selected", paths.len()),
+            ));
+        }
+        Msg::Start(start::StartMsg::EditMediaProbed(results)) => {
+            return Some(Activity::once(
+                Info,
+                format!("quick edit: {} probed", results.len()),
+            ));
+        }
         Msg::Media(MediaMsg::Import(paths)) => {
             let names: Vec<String> = paths
                 .iter()

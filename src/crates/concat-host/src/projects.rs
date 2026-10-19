@@ -435,9 +435,28 @@ pub fn read_document(path: &str) -> Result<Option<serde_json::Value>, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(format!("could not read {}: {error}", manifest.display())),
     };
-    serde_json::from_slice(&bytes)
-        .map(Some)
-        .map_err(|error| format!("{} is not a Concat project: {error}", manifest.display()))
+    let document: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("{} is not a Concat project: {error}", manifest.display()))?;
+    #[cfg(target_os = "ios")]
+    let document = {
+        let mut document = document;
+        for key in ["media", "fonts"] {
+            if let Some(items) = document
+                .get_mut(key)
+                .and_then(serde_json::Value::as_array_mut)
+            {
+                for item in items {
+                    if let Some(path) = item.get_mut("path")
+                        && let Some(original) = path.as_str()
+                    {
+                        *path = serde_json::Value::String(crate::ios_paths::restore(original));
+                    }
+                }
+            }
+        }
+        document
+    };
+    Ok(Some(document))
 }
 
 /// Reads an existing project's settings.
@@ -538,8 +557,19 @@ fn read_recents(config: &Path) -> Vec<ProjectInfo> {
     // means there is no history yet.
     std::fs::read(config.join(RECENTS))
         .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .and_then(|bytes| serde_json::from_slice::<Vec<ProjectInfo>>(&bytes).ok())
         .unwrap_or_default()
+        .into_iter()
+        .map(|entry| {
+            #[cfg(target_os = "ios")]
+            let entry = {
+                let mut entry = entry;
+                entry.path = crate::ios_paths::restore(&entry.path);
+                entry
+            };
+            entry
+        })
+        .collect()
 }
 
 fn write_recents(config: &Path, entries: &[ProjectInfo]) -> Result<(), String> {

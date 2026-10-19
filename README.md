@@ -1,3 +1,9 @@
+# Cutcap — iOS fork of Concat
+
+Modified 2026-10-19. This fork is developed independently of the Concat project. See [CUTCAP.md](CUTCAP.md) for changes, source, licensing and iOS build instructions. The upstream README is preserved below.
+
+---
+
 <p align="center">
   <img src="https://cdn.jsdelivr.net/gh/jub0t/Concat@main/assets/concat-mark-dark.png" alt="Concat" width="100" />
 </p>

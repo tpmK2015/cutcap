@@ -40,6 +40,8 @@ pub enum StartMsg {
     /// The folder the picker answered with.
     FolderChosen(String),
     Create,
+    EditMedia(Vec<PathBuf>),
+    EditMediaProbed(Vec<Result<concat_host::media::MediaSummary, String>>),
     /// Open a project that already exists, picked from disk.
     Open,
     /// The folder the Open picker answered with.
@@ -93,7 +95,7 @@ pub fn shown<'a>(
 /// The official site, which the guides and the developer docs are pages of.
 const SITE: &str = "https://concat.standalones.org";
 /// The repository: the code, the issues, the releases.
-pub const REPOSITORY: &str = "https://github.com/jub0t/Concat";
+pub const REPOSITORY: &str = "https://github.com/tpmK2015/cutcap";
 
 /// Where each of the launch screen's links goes, by the name the screen
 /// sends. One table, so a moved page is one line here. Every address is a
@@ -104,7 +106,7 @@ pub fn link(name: &str) -> Option<String> {
     Some(match name {
         "guides" => format!("{SITE}/guides/"),
         "first-edit" => format!("{SITE}/guides/first-edit/"),
-        "report" => format!("{SITE}/guides/report-a-problem/"),
+        "report" => format!("{REPOSITORY}/issues"),
         "github" => REPOSITORY.to_owned(),
         // The invite the README carries.
         "discord" => "https://discord.gg/DVuPfpXfqP".to_owned(),
@@ -294,6 +296,24 @@ impl StartPane {
             }
             StartMsg::FolderChosen(folder) => self.location = folder,
             StartMsg::Create => self.create(studio),
+            StartMsg::EditMedia(paths) => {
+                if paths.is_empty() || self.busy || studio.session.is_some() {
+                    return;
+                }
+                self.busy = true;
+                crate::host::spawn(
+                    move || {
+                        paths
+                            .iter()
+                            .map(|path| concat_host::media::probe(&path.to_string_lossy()))
+                            .collect()
+                    },
+                    |studio, _, _, results| {
+                        studio.handle(crate::panes::Msg::Start(StartMsg::EditMediaProbed(results)));
+                    },
+                );
+            }
+            StartMsg::EditMediaProbed(results) => self.edit_media(results, studio),
             StartMsg::Open => self.open(),
             StartMsg::OpenChosen(folder) => Self::open_chosen(&folder, studio),
             // Both of the grid's verbs report through the toast, as Open
@@ -417,6 +437,72 @@ impl StartPane {
                 }
             }
             Err(error) => self.error = error,
+        }
+    }
+
+    fn edit_media(
+        &mut self,
+        results: Vec<Result<concat_host::media::MediaSummary, String>>,
+        studio: &mut Studio,
+    ) {
+        self.busy = false;
+        if studio.session.is_some() {
+            return;
+        }
+        let mut media = Vec::new();
+        let mut failed = false;
+        for result in results {
+            match result {
+                Ok(summary)
+                    if summary.video.is_some()
+                        && summary
+                            .duration
+                            .is_some_and(|duration| duration.is_finite() && duration > 0.0) =>
+                {
+                    media.push(summary)
+                }
+                _ => failed = true,
+            }
+        }
+        let Some(video) = media.first().and_then(|summary| summary.video.as_ref()) else {
+            studio.notify(&t("start.videoImportFailed"), true);
+            return;
+        };
+        self.size = SIZES.len();
+        self.custom_size = custom_frame(video.width as f32, video.height as f32);
+        self.rate = RATES.len();
+        self.custom_rate = custom_rate(video.frame_rate);
+        self.name = self.free_untitled();
+        self.dropped.clear();
+        self.composing = true;
+        self.create(studio);
+        if studio.session.is_none() {
+            return;
+        }
+        let mut ids = Vec::new();
+        for summary in media {
+            if let Some(id) = studio.apply(concat_project::Command::AddMedia {
+                item: summary.to_new_media(),
+            }) {
+                ids.push(id);
+            }
+        }
+        if !ids.is_empty() {
+            let track_id = studio
+                .timeline()
+                .tracks
+                .last()
+                .map(|track| track.id.clone());
+            studio.apply(concat_project::Command::AddClipsInSequence {
+                media_ids: ids,
+                track_id,
+                start: 0.0,
+                ripple: false,
+            });
+            studio.save(false);
+        }
+        if failed {
+            studio.notify(&t("start.videoImportFailed"), true);
         }
     }
 

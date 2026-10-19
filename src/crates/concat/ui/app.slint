@@ -69,11 +69,11 @@ export {
 }
 
 export component App inherits Window {
-    title: "Concat";
+    title: "Cutcap";
     // The taskbar's and Alt-Tab's picture on Windows, and the window
     // list's on X11. A Mac takes its Dock icon from the bundle and ignores
     // this; the .exe's own, for Explorer, is embedded by build.rs.
-    icon: @image-url("../../../../assets/icons/concat_logo_256.png");
+    icon: @image-url("../../../../assets/icons/cutcap.svg");
     // Where the strip carries its own window buttons the platform's
     // decorations are not wanted, and this is the property Slint keeps
     // them off with: the winit backend re-applies `no-frame` to the
@@ -146,6 +146,7 @@ export component App inherits Window {
 
     /// Put up the new-project sheet, and take it down again.
     callback start-compose();
+    callback start-edit-video();
     callback start-dismiss();
     callback start-name-edited(name: string);
     callback start-location-edited(path: string);
@@ -594,7 +595,10 @@ export component App inherits Window {
                 version: root.app-version;
                 can-drop: root.can-drop;
 
-                compose => { root.start-compose(); }
+                compose => {
+                    if (root.phone) { root.start-edit-video(); }
+                    else { root.start-compose(); }
+                }
                 open => { root.start-open(); }
                 open-settings => { root.open-settings(); }
                 open-recent(path) => { root.start-open-recent(path); }

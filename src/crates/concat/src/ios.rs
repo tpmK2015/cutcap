@@ -73,6 +73,7 @@ type Picked = Box<dyn FnOnce(Vec<PathBuf>) + Send>;
 
 /// The pick in flight, waiting for a picker to answer.
 static PENDING: Mutex<Option<Picked>> = Mutex::new(None);
+static IMPORT_LOCK: Mutex<()> = Mutex::new(());
 
 /// What the pick in flight asked for: media, which comes from Photos or
 /// Files, or files by extension - subtitles, fonts - which only Files has.
@@ -326,6 +327,8 @@ fn show_photos(mtm: MainThreadMarker) -> Result<(), &'static str> {
         let config: Allocated<AnyObject> = msg_send![class!(PHPickerConfiguration), alloc];
         let config: Retained<AnyObject> = msg_send![config, init];
         let _: () = msg_send![&config, setSelectionLimit: 0isize];
+        const ORDERED_SELECTION: isize = 1;
+        let _: () = msg_send![&config, setSelection: ORDERED_SELECTION];
         let _: () = msg_send![&config, setPreferredAssetRepresentationMode: 1isize];
         // Photos holds videos and pictures; a pick for sound alone never
         // comes here (`install` goes straight to Files for it).
@@ -514,6 +517,7 @@ fn import_name(suggested: Option<&str>, file: &Path) -> String {
 /// where that is taken - and answers with where it went. A copy where the
 /// move fails (another volume, a file the app may read but not move).
 fn adopt(from: &Path, name: &str) -> Option<PathBuf> {
+    let _guard = IMPORT_LOCK.lock().ok()?;
     let Some(home) = std::env::home_dir() else {
         log::warn!("no home folder to import into");
         return None;
@@ -560,7 +564,7 @@ fn keep_in_exports(from: &Path) -> Result<String, String> {
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or(name);
-    Ok(format!("Concat › Exports › {kept}"))
+    Ok(format!("Cutcap › Exports › {kept}"))
 }
 
 /// `name`, or `name (2)`, `name (3)`... until nothing is overwritten.
@@ -609,7 +613,7 @@ fn save_to_photos(path: &Path) -> Result<String, String> {
         status = rx.recv().unwrap_or(0);
     }
     if status != 3 && status != 4 {
-        return Err("Concat may not add to Photos; allow it under Settings, Concat, Photos".into());
+        return Err("Cutcap may not add to Photos; allow it under Settings, Cutcap, Photos".into());
     }
     let url = NSURL::from_file_path(path).ok_or("the export's path is not a file URL")?;
     let change = RcBlock::new(move || {
